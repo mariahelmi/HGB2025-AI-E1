@@ -1,0 +1,348 @@
+# Exercise 1
+
+A. What is the single item with the highest price_per_unit?
+
+Query I used:
+```SQL
+SELECT *
+FROM ecomerce_data
+ORDER BY price_per_unit DESC
+LIMIT 1;
+```
+
+Answer:
+
+   id   | customer_name | product_category | quantity | price_per_unit | order_date | country   
+--------|---------------|------------------|----------|----------------|------------|---------  
+ 841292 | Emma Brown    | Automotive       |        3 |      $2,000.00 | 2024-10-11 | Italy  
+
+B. What are the top 3 products_category with the highest total quantity sold across all orders?
+
+Query I used:
+```SQL
+SELECT product_category, sum(quantity)
+FROM ecomerce_data
+GROUP BY product_category
+Order BY sum(quantity) DESC
+LIMIT 3;
+```
+
+
+Answer:
+ product_category |  sum   
+------------------|--------
+ Health & Beauty  | 300842
+ Electronics      | 300804
+ Toys             | 300598
+
+
+
+C. What is the total revenue per product category?
+(Revenue = price_per_unit × quantity)
+
+Query I used:
+```SQL
+SELECT product_category, sum(quantity*price_per_unit) as revenue
+FROM ecomerce_data
+GROUP BY product_category
+Order BY revenue DESC;
+```
+
+Answer:
+
+ product_category |     revenue
+------------------|-----------------
+ Automotive       | $306,589,798.86
+ Electronics      | $241,525,009.45
+ Home & Garden    |  $78,023,780.09
+ Sports           |  $61,848,990.83
+ Health & Beauty  |  $46,599,817.89
+ Office Supplies  |  $38,276,061.64
+ Fashion          |  $31,566,368.22
+ Toys             |  $23,271,039.02
+ Grocery          |  $15,268,355.66
+ Books            |  $12,731,976.04
+
+D. Which customers have the highest total spending?
+
+Query I used:
+```SQL
+SELECT customer_name, sum(quantity*price_per_unit) as revenue
+FROM ecomerce_data
+GROUP BY customer_name
+Order BY revenue DESC
+LIMIT 5;
+```
+
+
+Answer:
+
+ customer_name  |   revenue   
+----------------|-------------
+ Carol Taylor   | $991,179.18
+ Nina Lopez     | $975,444.95
+ Daniel Jackson | $959,344.48
+ Carol Lewis    | $947,708.57
+ Daniel Young   | $946,030.14
+
+
+# Exercise 2
+
+Assuming there are naive joins executed by users, such as:
+
+```SQL
+SELECT COUNT(*)
+FROM people_big p1
+JOIN people_big p2
+  ON p1.country = p2.country;
+```
+
+
+### Scalability:
+The main problem is that we are running heavy analytical queries on an OLTP database, which does not scale well for this kind of workload. A self-join on a very large table grows extremely fast and puts a lot of pressure on the system.
+
+To improve scalability, we should separate workloads. OLTP should handle transactions, while analytical queries should run on a data warehouse or OLAP system that scales horizontally. Partitioning the table by country also helps, since joins will only work within smaller partitions instead of the entire table. Cloud-native systems that allow scaling compute independently from storage are also a big win here.
+
+### Performance:
+Indexes, you can ether choose your Primary index based on what you know (what often gets queried together for example), or we choose a secondary index that fullfilles the requirements of the one above. 
+
+We can also improve performance by rewriting the query. In many cases, the self-join is unnecessary and the same result can be achieved using GROUP BY. For frequent queries, materialized views or pre-aggregated tables avoid repeating expensive joins.
+
+### Overall efficiency:
+Overall efficiency improves by rethinking the architecture, not just tuning one query. Analytical queries should not run on OLTP systems. Moving data to an OLAP system, using indexing properly, caching results, and precomputing aggregates reduces load and keeps the system responsive.
+
+In some cases, it might even make sense to redo parts of the system: redesign the schema, rethink indexing, or switch to a database that is actually built for large-scale analytics.
+
+
+
+# Exercise 3
+### What the Spark code does:
+
+**Imports & Spark session**
+
+This part imports all required libraries and creates a Spark session.
+The Spark configuration sets up logging, JDBC support for PostgreSQL, and limits parallelism and shuffle partitions so the benchmark is predictable and not over-parallelized. Logging is reduced to avoid noise.
+
+**JDBC connection**
+
+Here we define how Spark connects to PostgreSQL.
+It specifies the JDBC URL, database credentials, and the PostgreSQL driver. This configuration is reused whenever Spark reads data from Postgres.
+
+**Load data from PostgreSQL**
+
+Spark loads the people_big table from PostgreSQL into a DataFrame using JDBC.
+A count() is executed to force Spark to actually read all the data (otherwise Spark is lazy). This section measures how long it takes to load the table.
+The DataFrame is also registered as a temporary SQL view so it can be queried using Spark SQL later.
+
+**Query (a): Simple aggregation**
+
+This query computes the average salary per department.
+It uses groupBy, avg, and orderBy, which are typical analytical operations. The result is limited to 10 rows and collected to trigger execution. This shows how Spark handles basic aggregations.
+
+**Query (b): Nested aggregation**
+
+This query performs a two-level aggregation.
+First, it calculates the average salary per (country, department). Then it aggregates again to compute the average salary per country. This demonstrates how Spark handles more complex SQL-style analytics.
+
+**Query (c): Sorting + Top-N**
+
+This query sorts the entire dataset by salary in descending order and returns the top 10 rows.
+Sorting large datasets is expensive, so this part tests Spark’s ability to handle global ordering and Top-N queries efficiently.
+
+**Query (d): Heavy self-join (COUNT only)**
+This is the intentionally dangerous query.
+The table is joined with itself on country, and only the row count is computed. This causes a very large intermediate result and demonstrates how expensive naive self-joins can be, even in a distributed system.
+
+**Query (d-safe): Join-equivalent rewrite**
+
+This section rewrites the self-join into a much more efficient form.
+Instead of joining, it counts rows per country and then computes the total number of pairs using cnt * cnt. This produces the same result as the self-join but with far less computation.
+
+**Cleanup**
+
+The Spark session is stopped.
+This releases resources and cleanly shuts down the Spark application.
+
+### Architectural contrasts with PostgreSQL
+
+PostgreSQL is mainly a single-node OLTP system. It relies on indexes and a query optimizer, but it still runs on one machine and scales mostly vertically. Heavy joins on large tables can easily overload it.
+
+Spark, on the other hand, is distributed by design. Data is split across executors, queries run in parallel, and large aggregations and joins are handled by shuffles across the cluster. Spark is optimized for scanning large datasets and doing analytical work, not small transactional queries.
+
+### Advantages and limitations
+
+Spark works very well for large-scale analytics:
+
+- Distributed processing
+- In-memory computation
+- Easy parallel aggregations and scans
+- Much better handling of large joins and group-bys
+
+However, it also has drawbacks:
+
+- Higher setup and operational complexity
+Overhead when loading data (JDBC, serialization)
+- Not efficient for small datasets or low-latency OLTP queries
+
+
+### Relation to Exercise 2
+
+Exercise 2 showed how a naive self-join in PostgreSQL can completely kill performance. This Spark example demonstrates two important ideas from that discussion:
+
+1. Architecture matters (analytical queries scale much better on distributed systems like Spark)
+
+1. Query rewriting matters (the quote on quote safe version avoids the self-join entirely and is dramatically faster)
+
+Overall, this reinforces the idea that performance and scalability come from both better systems and better query design, not just throwing indexes at the problem.
+
+# Exercise 4
+
+### Loading the data
+```python
+start = time.time()
+
+df_ecomerce = spark.read.jdbc(
+    url=jdbc_url,
+    table="ecomerce_data",
+    properties=jdbc_props
+)
+
+# Clean the price_per_unit column: remove $ and commas, convert to double
+df_ecomerce = df_ecomerce.withColumn(
+    "price_clean",
+    regexp_replace(col("price_per_unit"), "[$,]", "").cast("double")
+)
+
+row_count = df_ecomerce.count()
+
+print(f"Rows loaded: {row_count}")
+print("Load time:", builtins.round(time.time() - start, 2), "seconds")
+
+
+df_ecomerce.createOrReplaceTempView("ecomerce_data")
+```
+
+The cleaning up is needed as I made my price per unit into a money variable in the table
+
+### A
+```python
+start = time.time()
+
+exercise4_a = (
+    df_ecomerce
+    .orderBy("price_clean", ascending=False)
+    .limit(1)
+)
+
+
+exercise4_a.collect()
+exercise4_a.show(truncate=False)
+print("Query exercise4_a time:", builtins.round(time.time() - start, 2), "seconds")
+```
+
+### B
+```python
+start = time.time()
+
+exercise4_b = (
+    df_ecomerce
+    .groupBy("product_category")
+    .agg(_sum("quantity").alias("total_quantity"))
+    .orderBy(col("total_quantity").desc())
+    .limit(3)
+)
+
+
+exercise4_b.collect()
+exercise4_b.show(truncate=False)
+print("Query exercise4_b time:", builtins.round(time.time() - start, 2), "seconds")
+```
+
+
+### C
+```python
+start = time.time()
+
+exercise4_c = (
+    df_ecomerce
+    .groupBy("product_category")
+    .agg(
+        _sum(col("quantity") * col("price_clean")).alias("revenue")
+    )
+    .orderBy(col("revenue").desc())
+)
+
+exercise4_c.collect()
+exercise4_c.show(truncate=False)
+print("Query exercise4_c time:", builtins.round(time.time() - start, 2), "seconds")
+
+```
+
+### D
+
+```python 
+start = time.time()
+
+exercise4_d = (
+    df_ecomerce
+    .groupBy("customer_name")
+    .agg(
+        _sum(col("quantity") * col("price_clean")).alias("revenue")
+    )
+    .orderBy(col("revenue").desc())
+    .limit(5)
+)
+
+exercise4_d.collect()
+exercise4_d.show(truncate=False)
+print("Query exercise4_d time:", builtins.round(time.time() - start, 2), "seconds")
+```
+
+### Results
+
+Rows loaded: 1000000
+Load time: 0.5 seconds
+
+|id    |customer_name|product_category|quantity|price_per_unit|order_date|country|price_clean|
+|------|-------------|----------------|--------|--------------|----------|-------|-----------|
+|841292|Emma Brown   |Automotive      |3       |$2,000.00     |2024-10-11|Italy  |2000.0     |
+
+
+Query exercise4_a time: 4.5 seconds
+
+|product_category|total_quantity|
+|----------------|--------------|
+|Health & Beauty |300842        |
+|Electronics     |300804        |
+|Toys            |300598        |
+
+Query exercise4_b time: 1.59 seconds
+
+
+|product_category|revenue             |
+|----------------|--------------------|
+|Automotive      |3.065897988599943E8 |
+|Electronics     |2.4152500945000267E8|
+|Home & Garden   |7.80237800900001E7  |
+|Sports          |6.1848990830000326E7|
+|Health & Beauty |4.65998178900003E7  |
+|Office Supplies |3.8276061640000574E7|
+|Fashion         |3.1566368219999947E7|
+|Toys            |2.3271039019999716E7|
+|Grocery         |1.5268355660000028E7|
+|Books           |1.273197603999989E7 |
+
+
+Query exercise4_c time: 3.78 seconds
+
+
+|customer_name |revenue          |
+|--------------|-----------------|
+|Carol Taylor  |991179.1800000003|
+|Nina Lopez    |975444.9499999998|
+|Daniel Jackson|959344.4800000001|
+|Carol Lewis   |947708.5700000002|
+|Daniel Young  |946030.1400000004|
+
+
+Query exercise4_d time: 3.53 seconds
