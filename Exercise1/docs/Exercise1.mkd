@@ -1,3 +1,5 @@
+Github Repo: https://github.com/mariahelmi/HGB2025-AI-E1
+
 # Exercise 1
 
 A. What is the single item with the highest price_per_unit?

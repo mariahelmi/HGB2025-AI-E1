@@ -4,8 +4,8 @@ import sys
 import random
 import time
 from datetime import datetime
-import psycopg2
-from psycopg2 import sql
+import psycopg
+from psycopg import sql
 
 DB_NAME = "office_db"
 DB_USER = "postgres"
@@ -14,13 +14,7 @@ DB_HOST = "localhost"
 DB_PORT = 5432
 
 # Step 1: Connect to default database
-conn = psycopg2.connect(
-    dbname="postgres",  # default DB
-    user=DB_USER,
-    password=DB_PASSWORD,
-    host=DB_HOST,
-    port=DB_PORT
-)
+conn = psycopg.connect(f"dbname={DB_USER} user={DB_USER} password={DB_PASSWORD} host={DB_HOST} port={DB_PORT}")
 conn.autocommit = True  # required to create database
 cursor = conn.cursor()
 
@@ -37,7 +31,7 @@ cursor.close()
 conn.close()
 
 # Step 3: Connect to the newly created database
-conn = psycopg2.connect(
+conn = psycopg.connect(
     dbname=DB_NAME,
     user=DB_USER,
     password=DB_PASSWORD,
