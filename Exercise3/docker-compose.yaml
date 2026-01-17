@@ -56,16 +56,16 @@ services:
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_CORES=1
-      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=4
+      - SPARK_WORKER_MEMORY=4G
     networks:
       - streaming-net
     deploy:
       replicas: 1
       resources:
         limits:
-          memory: 1024M  
-          cpus: '1'
+          memory: 4095M  
+          cpus: '4'
 
   # -------------------------
   # Spark Client

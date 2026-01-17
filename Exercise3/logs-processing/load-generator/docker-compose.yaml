@@ -10,7 +10,7 @@ services:
       - ADDITIONAL_TERM=crash
       - ADDITIONAL_TERM_RATE=100
     deploy:
-      replicas: 1  # This enables to run more instances (containers)
+      replicas: 4  # This enables to run more instances (containers)
       resources:
         limits:
           memory: 2048M  
