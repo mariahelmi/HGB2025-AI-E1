@@ -1,0 +1,24 @@
+![alt text](image.png)
+
+Simularities between what we are doing and Spark
+
+OLAP and many of these systems are trying to get to real time. 
+Its not so much one system vs another as the Software architecture for big data are getting more and more simular. OLAP tries to get to the direction of Stream processing and to slim the distance. 
+Just with OLAP works for many use cases, but not for all. Simple usecases would be doable with just the OLAP. 
+PULL Queries OLAP we pull the data.
+Pull queries need to pull every x amount of time for the data.  
+
+Stream processors PUSH queries. 
+We automatically push queries as soon as we reach a condition.
+
+
+How to improve our Heavy Query
+Make an index
+But for which part?
+for the %vulnerability& part as this is the most expensive part (we figured that out by excluding this part out of the query and the query running fast)
+
+What kind of index? There is an index like "Text search support" in Apache Pinot so we are probably gonna use this if we wanna find a text segment
+
+
+Foundational Exercise: Considering the material presented in the lecture NoSQL - Data Processing & Advanced Topics and Apache Pinot's concepts https://docs.pinot.apache.org/basics/concepts and architecture https://docs.pinot.apache.org/basics/concepts/architecture, how an OLAP system such as Apache Pinot relates to NoSQL and realizes Sharding, Replication, and Distributed SQL?
+
